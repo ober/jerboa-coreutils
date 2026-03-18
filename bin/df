@@ -1,0 +1,5 @@
+#!/bin/sh
+SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+export CHEZSCHEMELIBDIRS="$SCRIPT_DIR/lib:/home/jafourni/mine/jerboa/lib"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/support:$LD_LIBRARY_PATH"
+exec scheme --libdirs "$CHEZSCHEMELIBDIRS" --program "$SCRIPT_DIR/bin/df.sps" "$@"
