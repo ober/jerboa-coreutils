@@ -35,12 +35,19 @@ UTILS = true false yes echo printenv sleep whoami logname pwd \
         dir vdir rev
 
 export CHEZSCHEMELIBDIRS = $(LIB_DIR):$(JERBOA_LIB)
+export PROJECT_DIR = $(CURDIR)
 
-# Default: build C shim + generate bin scripts
-.PHONY: all build clean test install help
+# Default: build native multi-call binary
+.PHONY: all build binary clean test install help
 
-all: build
+all: binary
 
+# Native multi-call binary (BusyBox-style, self-contained ELF)
+binary: $(SUPPORT_DIR)/libcoreutils.so
+	@mkdir -p $(BIN_DIR)
+	PROJECT_DIR=$(CURDIR) $(SCHEME) --libdirs "$(CHEZSCHEMELIBDIRS)" -q < build-binary.ss
+
+# Legacy: build C shim + generate interpreter wrapper scripts
 build: $(SUPPORT_DIR)/libcoreutils.so $(BIN_DIR)/.generated
 
 $(SUPPORT_DIR)/libcoreutils.so: $(SUPPORT_DIR)/libcoreutils.c
@@ -81,14 +88,16 @@ test:
 	@echo "=== Done ==="
 
 clean:
-	rm -rf $(BIN_DIR) $(SUPPORT_DIR)/libcoreutils.so
+	rm -rf $(BIN_DIR) $(SUPPORT_DIR)/libcoreutils.so $(SUPPORT_DIR)/cu_*.h
 	find $(LIB_DIR) -name "*.so" -o -name "*.wpo" -o -name "*.hash" | xargs rm -f 2>/dev/null || true
+	rm -f dispatch.so dispatch.wpo dispatch-all.so coreutils.boot
 
 help:
 	@echo "jerboa-coreutils - GNU coreutils in Jerboa (Gerbil on Chez Scheme)"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make build     Build C shim library and generate bin scripts"
+	@echo "  make binary    Build self-contained native multi-call ELF binary (default)"
+	@echo "  make build     Build C shim + interpreter wrapper scripts (legacy)"
 	@echo "  make test      Run basic smoke tests"
 	@echo "  make clean     Remove build artifacts"
 	@echo "  make run UTIL=name ARGS='...'  Run a utility"

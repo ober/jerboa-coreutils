@@ -1,0 +1,16 @@
+# Compiled Chez Scheme artifacts
+lib/**/*.so
+lib/**/*.wpo
+lib/**/*.hash
+
+# Build artifacts
+support/cu_*.h
+support/coreutils-main.o
+support/libcoreutils-obj.o
+dispatch.so
+dispatch.wpo
+dispatch-all.so
+coreutils.boot
+
+# Binary output (rebuilt with make binary)
+bin/jerboa-coreutils
