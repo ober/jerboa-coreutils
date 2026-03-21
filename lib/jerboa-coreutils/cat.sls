@@ -69,6 +69,40 @@
                   (write-char c out)))
               (loop (+ i 1))))))))
 
+  ;; Fast binary block copy — no character decoding overhead
+  (def (cat-fast port)
+    (let ((buf (make-bytevector 65536))
+          (out (standard-output-port)))
+      (let loop ()
+        (let ((n (get-bytevector-n! port buf 0 65536)))
+          (unless (eof-object? n)
+            (put-bytevector out buf 0 n)
+            (loop))))
+      (flush-output-port out)))
+
+  ;; Line-oriented cat with flags (get-line instead of read-char)
+  (def (cat-lines port number-lines? number-nonblank? squeeze?
+                  show-ends? show-tabs? show-nonprinting?)
+    (let loop ((line-num 1) (prev-blank? #f))
+      (let ((line (get-line port)))
+        (unless (eof-object? line)
+          (let* ((blank? (string=? line ""))
+                 (skip? (and squeeze? prev-blank? blank?)))
+            (unless skip?
+              (when number-lines?
+                (if (and number-nonblank? blank?)
+                  (void)
+                  (begin
+                    (display-right-aligned line-num 6)
+                    (display "\t"))))
+              (display (transform-line line show-tabs? show-nonprinting?))
+              (when show-ends? (display "$"))
+              (newline))
+            (loop (if (and number-lines? (not skip?)
+                          (not (and number-nonblank? blank?)))
+                    (+ line-num 1) line-num)
+                  blank?))))))
+
   (def (main . args)
     (parameterize ((program-name "cat"))
       (call-with-getopt
@@ -80,49 +114,19 @@
                 (show-ends? (or (hash-get opt 'show-ends) (hash-get opt 'show-all) (hash-get opt 've)))
                 (show-tabs? (or (hash-get opt 'show-tabs) (hash-get opt 'show-all) (hash-get opt 'vt)))
                 (show-nonprinting? (or (hash-get opt 'show-nonprinting) (hash-get opt 'show-all) (hash-get opt 've) (hash-get opt 'vt))))
-              (let ((line-num 1)
-                    (prev-blank? #f))
-                (process-cat-files
-                  (if (null? files) '("-") files)
-                  (lambda (port)
-                    ;; Character-by-character reading to correctly handle files
-                    ;; without trailing newline
-                    (let loop ((line-buf (open-output-string)))
-                      (let ((c (read-char port)))
-                        (cond
-                          ((eof-object? c)
-                           ;; Flush remaining content (last line without trailing newline)
-                           (let ((line (get-output-string line-buf)))
-                             (when (> (string-length line) 0)
-                               (let* ((blank? #f)
-                                      (skip? #f))
-                                 (when number-lines?
-                                   (display-right-aligned line-num 6)
-                                   (display "\t")
-                                   (set! line-num (+ line-num 1)))
-                                 (display (transform-line line show-tabs? show-nonprinting?))
-                                 (when show-ends? (display "$"))))))
-                          ((eqv? c #\newline)
-                           ;; Complete line
-                           (let* ((line (get-output-string line-buf))
-                                  (blank? (string=? line ""))
-                                  (skip? (and squeeze? prev-blank? blank?)))
-                             (unless skip?
-                               (when number-lines?
-                                 (if (and number-nonblank? blank?)
-                                   (void)
-                                   (begin
-                                     (display-right-aligned line-num 6)
-                                     (display "\t")
-                                     (set! line-num (+ line-num 1)))))
-                               (display (transform-line line show-tabs? show-nonprinting?))
-                               (when show-ends? (display "$"))
-                               (newline))
-                             (set! prev-blank? blank?)
-                             (loop (open-output-string))))
-                          (else
-                           (write-char c line-buf)
-                           (loop line-buf))))))))))
+            (let ((fancy? (or number-lines? squeeze? show-ends?
+                              show-tabs? show-nonprinting?)))
+              (process-cat-files
+                (if (null? files) '("-") files)
+                (lambda (port)
+                  (if fancy?
+                    (cat-lines port number-lines? number-nonblank? squeeze?
+                               show-ends? show-tabs? show-nonprinting?)
+                    ;; Plain cat: fast binary block copy
+                    (cat-fast (if (equal? port (current-input-port))
+                               (standard-input-port)
+                               (open-file-input-port
+                                 (port-name port))))))))))
         args
         'program: "cat"
         'help: "Concatenate FILE(s) to standard output."

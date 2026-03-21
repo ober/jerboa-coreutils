@@ -126,40 +126,52 @@
         (if (<= v 0) d
           (loop (quotient v 10) (+ d 1))))))
 
+  ;; Byte classification for whitespace detection
+  (define (ws-byte? b)
+    (or (= b 10) (= b 32) (= b 9) (= b 13) (= b 12) (= b 11)))
+
+  ;; Count UTF-8 lead bytes (chars = bytes that aren't continuation bytes 10xxxxxx)
+  (define (utf8-lead? b)
+    (not (= (fxlogand b #xC0) #x80)))
+
+  ;; Fast block-based counting
   (def (count-file file)
     (let ((proc
       (lambda (port)
-        (let loop ((lines 0) (words 0) (bytes 0) (chars 0)
-                   (max-line 0) (line-len 0) (in-word? #f))
-          (let ((c (read-char port)))
-            (if (eof-object? c)
-              (values lines words bytes chars (max max-line line-len))
-              (let* ((b (char->integer c))
-                     (byte-count (cond ((< b #x80) 1) ((< b #x800) 2)
-                                       ((< b #x10000) 3) (else 4)))
-                     (nl? (eqv? c #\newline))
-                     (ws? (or nl? (eqv? c #\space) (eqv? c #\tab)
-                              (eqv? c #\return) (eqv? c #\page)
-                              (eqv? c (integer->char 11))))
-                     (word-start? (and (not in-word?) (not ws?)))
-                     (new-words (if word-start? (+ words 1) words)))
-                (loop (if nl? (+ lines 1) lines)
-                      new-words
-                      (+ bytes byte-count)
-                      (+ chars 1)
-                      (if nl? (max max-line line-len) max-line)
-                      (if nl? 0 (+ line-len 1))
-                      (not ws?)))))))))
+        (let ((buf (make-bytevector 65536)))
+          (let loop ((lines 0) (words 0) (bytes 0) (chars 0)
+                     (max-line 0) (line-len 0) (in-word? #f))
+            (let ((n (get-bytevector-n! port buf 0 65536)))
+              (if (eof-object? n)
+                (values lines words bytes chars (max max-line line-len))
+                ;; Scan the block
+                (let scan ((i 0) (l lines) (w words) (c chars)
+                           (ml max-line) (ll line-len) (iw? in-word?))
+                  (if (>= i n)
+                    (loop l w (+ bytes n) c ml ll iw?)
+                    (let ((b (bytevector-u8-ref buf i)))
+                      (let* ((nl? (= b 10))
+                             (ws? (ws-byte? b))
+                             (word-start? (and (not iw?) (not ws?)))
+                             (new-w (if word-start? (+ w 1) w))
+                             (new-c (if (utf8-lead? b) (+ c 1) c)))
+                        (scan (+ i 1)
+                              (if nl? (+ l 1) l)
+                              new-w
+                              new-c
+                              (if nl? (max ml ll) ml)
+                              (if nl? 0 (+ ll 1))
+                              (not ws?)))))))))))))
       (if (equal? file "-")
-        (proc (current-input-port))
+        (proc (standard-input-port))
         (with-catch
           (lambda (e)
             (warn "~a: No such file or directory" file)
             (values 0 0 0 0 0))
           (lambda ()
-            (let ((port (open-input-file file)))
+            (let ((port (open-file-input-port file)))
               (try (proc port)
-                (finally (close-input-port port)))))))))
+                (finally (close-port port)))))))))
 
   (def (print-counts lines words bytes chars max-line
                       show-lines? show-words? show-bytes?

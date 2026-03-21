@@ -61,20 +61,36 @@
       (if s s
         (begin (die "invalid number of lines: '~a'" str) 0))))
 
+  ;; Fast line-counting head using block reads
   (def (head-lines file n)
     (let ((proc
       (lambda (port)
         (if (>= n 0)
-          ;; Positive: output first n lines
-          (let loop ((i 0))
-            (when (< i n)
-              (let ((c (read-char port)))
-                (unless (eof-object? c)
-                  (write-char c)
-                  (if (eqv? c #\newline)
-                    (loop (+ i 1))
-                    (loop i))))))
-          ;; Negative: output all but last |n| lines
+          ;; Positive: output first n lines using block I/O
+          (let ((buf (make-bytevector 65536))
+                (out (standard-output-port)))
+            (let loop ((remaining n))
+              (when (> remaining 0)
+                (let ((got (get-bytevector-n! port buf 0 65536)))
+                  (unless (eof-object? got)
+                    ;; Scan for newlines in this block
+                    (let scan ((i 0) (rem remaining))
+                      (cond
+                        ((<= rem 0)
+                         ;; Done — already wrote enough
+                         (void))
+                        ((>= i got)
+                         ;; Exhausted this block, need more
+                         (put-bytevector out buf 0 got)
+                         (loop rem))
+                        ((= (bytevector-u8-ref buf i) 10) ;; newline
+                         (if (= rem 1)
+                           ;; This is the last newline we need — write up to here and stop
+                           (begin (put-bytevector out buf 0 (+ i 1))
+                                  (flush-output-port out))
+                           (scan (+ i 1) (- rem 1))))
+                        (else (scan (+ i 1) rem)))))))))
+          ;; Negative: output all but last |n| lines (keep existing approach)
           (let* ((skip (- n))
                  (all-lines (read-all-lines-raw port))
                  (total (length all-lines))
@@ -85,15 +101,15 @@
                 (when (cdr (car rest)) (newline))
                 (loop (cdr rest) (+ i 1)))))))))
       (if (equal? file "-")
-        (proc (current-input-port))
+        (proc (standard-input-port))
         (with-catch
           (lambda (e)
             (warn "cannot open '~a' for reading: No such file or directory" file)
             (set! exit-status 1))
           (lambda ()
-            (let ((port (open-input-file file)))
+            (let ((port (open-file-input-port file)))
               (try (proc port)
-                (finally (close-input-port port)))))))))
+                (finally (close-port port)))))))))
 
   ;; Read all lines preserving trailing newline info
   ;; Returns list of (content . has-newline?)
@@ -120,31 +136,36 @@
              (set! c (read-char port))
              (loop buf)))))))
 
+  ;; Fast byte-count head using block I/O
   (def (head-bytes file n)
     (let ((proc
       (lambda (port)
         (if (>= n 0)
           ;; Positive: output first n bytes
-          (let loop ((i 0))
-            (when (< i n)
-              (let ((c (read-char port)))
-                (unless (eof-object? c)
-                  (write-char c)
-                  (loop (+ i 1))))))
+          (let ((buf (make-bytevector 65536))
+                (out (standard-output-port)))
+            (let loop ((remaining n))
+              (when (> remaining 0)
+                (let* ((to-read (min remaining 65536))
+                       (got (get-bytevector-n! port buf 0 to-read)))
+                  (unless (eof-object? got)
+                    (put-bytevector out buf 0 got)
+                    (loop (- remaining got))))))
+            (flush-output-port out))
           ;; Negative: output all but last |n| bytes
           (let* ((content (read-all-as-string port))
                  (len (string-length content))
                  (to-print (max 0 (- len (- n)))))
             (display (substring content 0 to-print)))))))
       (if (equal? file "-")
-        (proc (current-input-port))
+        (proc (standard-input-port))
         (with-catch
           (lambda (e)
             (warn "cannot open '~a' for reading: No such file or directory" file)
             (set! exit-status 1))
           (lambda ()
-            (let ((port (open-input-file file)))
+            (let ((port (open-file-input-port file)))
               (try (proc port)
-                (finally (close-input-port port)))))))))
+                (finally (close-port port)))))))))
 
   ) ;; end library
