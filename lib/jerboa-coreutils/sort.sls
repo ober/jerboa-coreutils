@@ -15,10 +15,13 @@
           (only (std misc string) string-trim string-prefix?)
           (std sort)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "sort"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Pre-process: replace -h with --human-numeric-sort (getopt reserves -h for --help)
       (let ((args (map (lambda (a) (if (equal? a "-h") "--human-numeric-sort" a)) args)))
       (call-with-getopt

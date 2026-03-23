@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (string-prefix? prefix str)
     (and (>= (string-length str) (string-length prefix))
@@ -49,6 +50,9 @@
 
   (def (main . args)
     (parameterize ((program-name "tty"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((tty-name (get-tty-name))

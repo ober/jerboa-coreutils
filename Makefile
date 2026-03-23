@@ -32,7 +32,7 @@ UTILS = true false yes echo printenv sleep whoami logname pwd \
         dircolors \
         install shred pinky basenc b2sum sum od csplit pr chcon runcon ptx \
         cp mv rm ls dd stty stdbuf \
-        dir vdir rev
+        dir vdir rev top
 
 export CHEZSCHEMELIBDIRS = $(LIB_DIR):$(JERBOA_LIB)
 export PROJECT_DIR = $(CURDIR)

@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Format an address in the given radix
   (def (format-address addr radix)
@@ -174,6 +175,8 @@
 
   (def (main . args)
     (parameterize ((program-name "od"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (let ((args (expand-od-args args)))
       (call-with-getopt
         (lambda (_ opt)

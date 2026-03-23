@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -147,6 +148,8 @@
 
   (def (main . args)
     (parameterize ((program-name "install"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((mode-val (if (hash-get opt 'mode) (parse-octal-mode (hash-ref opt 'mode)) #o755))

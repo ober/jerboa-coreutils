@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (parse-tabstop str)
     (let ((n (string->number str)))
@@ -47,6 +48,8 @@
 
   (def (main . args)
     (parameterize ((program-name "expand"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (hash-ref opt 'rest))

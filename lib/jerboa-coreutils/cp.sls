@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -98,6 +99,8 @@
         (warn "cannot stat '~a': No such file or directory" src)
         (set! *exit-code* 1))
       (when src-type
+        (audit-file-access! src)
+        (audit-file-modify! dst)
         ;; Handle destination existing
         (let ((dst-type (get-file-type dst)))
           (when dst-type
@@ -194,6 +197,8 @@
 
   (def (main . args)
     (parameterize ((program-name "cp"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (when (null? (hash-ref opt 'rest))

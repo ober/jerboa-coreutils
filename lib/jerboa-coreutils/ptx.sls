@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Default ignore words
   (define *default-ignore*
@@ -111,6 +112,8 @@
 
   (def (main . args)
     (parameterize ((program-name "ptx"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((output-width (if (hash-get opt 'width)

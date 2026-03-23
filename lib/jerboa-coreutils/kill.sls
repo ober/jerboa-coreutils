@@ -12,7 +12,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-kill-proc (foreign-procedure "kill" (int int) int))
@@ -55,6 +56,9 @@
 
   (def (main . args)
     (parameterize ((program-name "kill"))
+      (init-security!)
+      (install-process-seccomp!)
+      (with-process-capability
       (cond
         ((null? args)
          (die "usage error"))
@@ -103,10 +107,12 @@
                 (lambda (arg)
                   (let ((pid (string->number arg)))
                     (if pid
-                      (let ((rc (ffi-kill-proc pid signal)))
-                        (unless (zero? rc)
-                          (warn "~a: No such process" pid)))
+                      (begin
+                        (audit-process-signal! pid signal)
+                        (let ((rc (ffi-kill-proc pid signal)))
+                          (unless (zero? rc)
+                            (warn "~a: No such process" pid))))
                       (warn "~a: arguments must be process or job IDs" arg))))
-                args))))))))
+                args)))))))))
 
   ) ;; end library

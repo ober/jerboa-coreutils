@@ -11,10 +11,13 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "basename"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((names (hash-ref opt 'rest))

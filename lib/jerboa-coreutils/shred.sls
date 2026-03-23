@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-file-size (foreign-procedure "coreutils_file_size" (string) long-long))
@@ -46,12 +47,18 @@
                 (let* ((chunk-size (min buf-size left))
                        (buf (generator chunk-size)))
                   (put-bytevector port buf 0 chunk-size)
+                  ;; Wipe the random data buffer after use (defense in depth)
+                  (let wipe ((i 0))
+                    (when (< i (bytevector-length buf))
+                      (bytevector-u8-set! buf i 0)
+                      (wipe (+ i 1))))
                   (loop (- left chunk-size))))))
           (flush-output-port port)
           (close-port port)))))
 
   ;; Shred a single file
   (def (shred-file path passes zero-pass remove verbose exact)
+    (audit-file-modify! path)
     (let ((file-size (get-file-size path)))
       (when (< file-size 0)
         (warn "~a: No such file or directory" path))
@@ -80,6 +87,8 @@
 
   (def (main . args)
     (parameterize ((program-name "shred"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((passes (if (hash-get opt 'iterations)

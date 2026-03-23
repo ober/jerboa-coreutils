@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-lstat (foreign-procedure "coreutils_ls_lstat" (string int) int))
@@ -165,6 +166,7 @@
             (loop (cdr es) (cdr os) (cdr gs)))))))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "vdir"))
       (call-with-getopt
         (lambda (_ opt)

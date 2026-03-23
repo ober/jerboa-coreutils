@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Read all lines from a port
   (def (read-all-lines port)
@@ -200,6 +201,8 @@
 
   (def (main . args)
     (parameterize ((program-name "csplit"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((prefix (or (hash-get opt 'prefix) "xx"))

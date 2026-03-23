@@ -12,9 +12,11 @@
           (only (std misc string) string-join)
           (jerboa-coreutils common)
           (jerboa-coreutils common version)
+          (jerboa-coreutils common security)
           (std cli getopt))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "yes"))
       (when (and (pair? args) (member (car args) '("--help" "--version")))
         (cond

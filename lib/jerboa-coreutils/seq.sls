@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (parse-number str)
     (let ((n (string->number str)))
@@ -149,6 +150,8 @@
 
   (def (main . args)
     (parameterize ((program-name "seq"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((sep (or (hash-get opt 'separator) "\n"))

@@ -9,10 +9,12 @@
             thread? make-mutex mutex? mutex-name)
           (jerboa core)
           (only (std format) eprintf)
-          (jerboa-coreutils common))
+          (jerboa-coreutils common)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "runcon"))
+      (init-security!)
       (eprintf "runcon: SELinux is not supported in this implementation\n")
       (exit 1)))
 

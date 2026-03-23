@@ -9,9 +9,11 @@
             thread? make-mutex mutex? mutex-name)
           (jerboa core)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "echo"))
       (let loop ((args args)
                  (newline? #t)

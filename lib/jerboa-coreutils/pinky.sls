@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (run-pinky pinky-args)
     (with-catch
@@ -37,6 +38,7 @@
               (for-each displayln lines)))))))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "pinky"))
       (call-with-getopt
         (lambda (_ opt)

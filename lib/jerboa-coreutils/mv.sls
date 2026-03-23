@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -125,6 +126,8 @@
               (unless (confirm-overwrite dst)
                 (set! src-type -1)))  ;; skip
             (when (>= src-type 0)
+              (audit-file-modify! src)
+              (audit-file-modify! dst)
               ;; Try rename first (same filesystem, fast path)
               (let ((rc (ffi-rename src dst)))
                 (if (zero? rc)
@@ -150,6 +153,8 @@
 
   (def (main . args)
     (parameterize ((program-name "mv"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (when (null? (hash-ref opt 'rest))

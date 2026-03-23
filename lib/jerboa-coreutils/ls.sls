@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -342,6 +343,8 @@
   (def (main . args)
     (let-values (((filtered-args color-mode) (extract-color-args args)))
       (parameterize ((program-name "ls"))
+      (init-security!)
+      (install-readonly-seccomp!)
         (call-with-getopt
           (lambda (_ opt)
               (let* ((paths (if (null? (hash-ref opt 'rest)) '(".") (hash-ref opt 'rest)))

@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Read /proc/uptime and return uptime in seconds as integer
   (def (read-uptime)
@@ -120,6 +121,10 @@
 
   (def (main . args)
     (parameterize ((program-name "uptime"))
+      ;; Security: uptime only reads /proc and /etc — lock it down
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((uptime-secs (read-uptime))

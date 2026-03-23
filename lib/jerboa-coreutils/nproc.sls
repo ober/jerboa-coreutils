@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Read /sys to get CPU count
   (def (get-nproc-all)
@@ -43,6 +44,9 @@
 
   (def (main . args)
     (parameterize ((program-name "nproc"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((n (if (hash-get opt 'all)

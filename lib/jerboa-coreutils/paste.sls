@@ -12,10 +12,13 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "paste"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Insert "--" before any bare "-" that getopt would misparse as a flag
       (let ((args (insert-dashdash-for-stdin args)))
       (call-with-getopt

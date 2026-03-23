@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -210,6 +211,8 @@
 
   (def (main . args)
     (parameterize ((program-name "test"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (when (and (pair? args) (string=? (car args) "--help"))
         (displayln "Usage: test EXPRESSION")
         (displayln "  or:  test")

@@ -13,7 +13,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Parse optional width.precision from format string starting at i
   ;; Returns (values width precision new-i)
@@ -241,6 +242,8 @@
 
   (def (main . args)
     (parameterize ((program-name "printf"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (if (null? (hash-ref opt 'rest))

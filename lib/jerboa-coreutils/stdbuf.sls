@@ -11,13 +11,16 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; stdbuf - delegate to /usr/bin/stdbuf
   ;; Pass all arguments through to the system binary.
 
   (def (main . args)
     (parameterize ((program-name "stdbuf"))
+      (init-security!)
+      (install-process-seccomp!)
       (with-catch
         (lambda (e) (die "cannot run /usr/bin/stdbuf: ~a" (error-message e)))
         (lambda ()

@@ -12,7 +12,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Use /usr/bin/uname to get system info since we can't easily
   ;; call uname() with struct via Chez foreign-procedure
@@ -39,6 +40,9 @@
 
   (def (main . args)
     (parameterize ((program-name "uname"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((parts '())

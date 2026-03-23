@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define exit-status 0)
 
@@ -105,6 +106,9 @@
 
   (def (main . args)
     (parameterize ((program-name "cat"))
+      (init-security!)
+      (install-readonly-seccomp!)
+      (with-fs-read-capability
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (hash-ref opt 'rest))
@@ -149,6 +153,6 @@
         (flag 'show-nonprinting "-v" "--show-nonprinting"
           'help: "use ^ and M- notation, except for LFD and TAB")
         (rest-arguments 'rest))
-      (unless (= exit-status 0) (exit exit-status))))
+      (unless (= exit-status 0) (exit exit-status)))))
 
   ) ;; end library

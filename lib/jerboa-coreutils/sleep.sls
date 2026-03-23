@@ -12,9 +12,11 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "sleep"))
       (call-with-getopt
         (lambda (_ opt)

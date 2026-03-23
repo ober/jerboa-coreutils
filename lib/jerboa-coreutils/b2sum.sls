@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (string-index-of str ch)
     (let loop ((i 0))
@@ -115,6 +116,8 @@
 
   (def (main . args)
     (parameterize ((program-name "b2sum"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (if (null? (hash-ref opt 'rest)) '("-") (hash-ref opt 'rest))))

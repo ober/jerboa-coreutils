@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Expand combined flags like -cd -> -c -d, -ds -> -d -s
   (def (expand-tr-flags args)
@@ -249,6 +250,8 @@
   (def (main . args)
     ;; tr doesn't use getopt - it has unique argument parsing
     (parameterize ((program-name "tr"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Pre-process: expand combined flags like -cd -> -c -d, -ds -> -d -s
       (let ((args (expand-tr-flags args)))
       (let loop ((args args) (complement? #f) (delete? #f) (squeeze? #f))

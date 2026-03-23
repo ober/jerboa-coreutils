@@ -13,7 +13,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -85,6 +86,9 @@
 
   (def (main . args)
     (parameterize ((program-name "id"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((uid (ffi-getuid))

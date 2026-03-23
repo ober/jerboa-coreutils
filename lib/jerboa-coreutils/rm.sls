@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -69,6 +70,7 @@
          ;; file, symlink, or other
          (when (or (not interactive)
                    (confirm-remove path "file"))
+           (audit-file-delete! path)
            (let ((rc (ffi-unlink path)))
              (cond
                ((< rc 0)
@@ -124,6 +126,9 @@
 
   (def (main . args)
     (parameterize ((program-name "rm"))
+      (init-security!)
+      (install-io-seccomp!)
+      (with-fs-write-capability
       (call-with-getopt
         (lambda (_ opt)
             (when (null? (hash-ref opt 'rest))
@@ -155,6 +160,6 @@
           'help: "explain what is being done")
         (flag 'no-preserve-root "--no-preserve-root"
           'help: "do not treat '/' specially")
-        (rest-arguments 'rest))))
+        (rest-arguments 'rest)))))
 
   ) ;; end library

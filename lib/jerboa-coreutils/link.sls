@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Create a hard link using POSIX link() syscall via FFI
   (define _load-ffi (begin (load-shared-object #f) (void)))
@@ -24,6 +25,8 @@
 
   (def (main . args)
     (parameterize ((program-name "link"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (hash-ref opt 'rest)))

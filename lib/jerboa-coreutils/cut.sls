@@ -13,7 +13,8 @@
           (std cli getopt)
           (only (std misc string) string-split string-contains string-index)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Parse LIST format: N, N-M, N-, -M, comma-separated
   (def (parse-list str)
@@ -135,6 +136,8 @@
 
   (def (main . args)
     (parameterize ((program-name "cut"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Pre-process --key=value into --key value
       (let ((args (split-long-opts args)))
       (call-with-getopt

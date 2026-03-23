@@ -12,7 +12,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def DEFAULT_WIDTH 75)
 
@@ -120,6 +121,8 @@
 
   (def (main . args)
     (parameterize ((program-name "fmt"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((width (if (hash-get opt 'width)

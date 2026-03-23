@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; date delegates entirely to /bin/date for full compatibility
   ;; since date parsing is incredibly complex
@@ -40,6 +41,9 @@
 
   (def (main . args)
     (parameterize ((program-name "date"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       ;; We use a simple manual arg parser to pass args directly to /bin/date
       (let loop ((rest args) (date-args '()))
         (cond

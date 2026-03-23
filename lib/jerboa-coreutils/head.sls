@@ -14,12 +14,15 @@
           (std cli getopt)
           (std misc ports)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define exit-status 0)
 
   (def (main . args)
     (parameterize ((program-name "head"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let ((files (hash-ref opt 'rest))

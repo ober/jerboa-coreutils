@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -19,6 +20,9 @@
 
   (def (main . args)
     (parameterize ((program-name "hostid"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((id (hostid-get))

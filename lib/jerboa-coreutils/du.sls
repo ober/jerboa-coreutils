@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-du-stat (foreign-procedure "coreutils_du_stat" (string int) long))
@@ -103,6 +104,7 @@
                   dir-total))))))))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "du"))
       (call-with-getopt
         (lambda (_ opt)

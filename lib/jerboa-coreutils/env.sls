@@ -11,7 +11,8 @@
           (except (jerboa core) filter-map setenv)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; FFI unsetenv for actually removing environment variables
   (define _load-ffi-env (begin (load-shared-object #f) (void)))
@@ -19,6 +20,8 @@
 
   (def (main . args)
     (parameterize ((program-name "env"))
+      (init-security!)
+      (install-process-seccomp!)
       (let loop ((args args)
                  (unsets '())
                  (sets '())

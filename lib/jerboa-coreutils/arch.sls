@@ -10,7 +10,8 @@
           (jerboa core)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (arch-machine)
     (with-catch
@@ -29,6 +30,9 @@
 
   (def (main . args)
     (parameterize ((program-name "arch"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (cond
         ((and (pair? args) (member (car args) '("--help" "-h")))
          (displayln "Usage: arch")

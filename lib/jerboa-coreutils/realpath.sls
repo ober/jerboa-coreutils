@@ -12,7 +12,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (ffi-realpath-c path)
     ;; Use system realpath command
@@ -33,6 +34,8 @@
 
   (def (main . args)
     (parameterize ((program-name "realpath"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (when (null? (hash-ref opt 'rest))

@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; expr - evaluate expressions
   ;; Tokens come from command-line arguments
@@ -309,6 +310,8 @@
 
   (def (main . args)
     (parameterize ((program-name "expr"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (when (null? args)
         (die "missing operand"))
       (when (string=? (car args) "--help")

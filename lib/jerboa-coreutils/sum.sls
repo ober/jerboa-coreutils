@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; BSD checksum: 16-bit rotate-right checksum
   (def (bsd-checksum port)
@@ -78,6 +79,8 @@
 
   (def (main . args)
     (parameterize ((program-name "sum"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (if (null? (hash-ref opt 'rest)) '("-") (hash-ref opt 'rest))))

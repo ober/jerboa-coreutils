@@ -13,10 +13,13 @@
           (std cli getopt)
           (only (std misc string) string-trim string-contains)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "numfmt"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Pre-process --key=value into --key value
       (let ((args (split-long-opts args)))
       (call-with-getopt

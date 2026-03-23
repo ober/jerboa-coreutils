@@ -11,12 +11,14 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; stty - delegate to /usr/bin/stty
   ;; Pass all arguments through to the system binary.
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "stty"))
       (with-catch
         (lambda (e) (die "cannot run /usr/bin/stty: ~a" (error-message e)))

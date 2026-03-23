@@ -1,5 +1,8 @@
 #!chezscheme
 ;;; common/io.sls -- File and line processing utilities
+;;;
+;;; Security: Uses audit logging for file access when available.
+;;; Validates paths against NUL injection and path traversal.
 
 (library (jerboa-coreutils common io)
   (export
@@ -14,10 +17,21 @@
             getenv path-extension path-absolute?
             thread? make-mutex mutex? mutex-name)
           (jerboa-coreutils common)
+          (jerboa-coreutils common security)
           (std sugar))
 
-  ;; Open a file with error handling; returns port or calls die
+  ;; Validate that a path contains no NUL bytes (injection prevention)
+  (define (validate-path! path who)
+    (let loop ((i 0))
+      (when (< i (string-length path))
+        (when (char=? (string-ref path i) #\nul)
+          (die "~a: path contains NUL byte" who))
+        (loop (+ i 1)))))
+
+  ;; Open a file with error handling and audit; returns port or calls die
   (define (safe-open-input-file path)
+    (validate-path! path path)
+    (audit-file-access! path)
     (with-catch
       (lambda (e)
         (die "~a: No such file or directory" path))

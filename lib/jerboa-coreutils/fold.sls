@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (fold-line line width bytes? spaces?)
     (let ((len (string-length line)))
@@ -69,6 +70,8 @@
 
   (def (main . args)
     (parameterize ((program-name "fold"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((files (hash-ref opt 'rest))

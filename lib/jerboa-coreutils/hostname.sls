@@ -10,7 +10,8 @@
           (jerboa core)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Read hostname from /etc/hostname or shell out to hostname command
   (def (get-hostname)
@@ -31,6 +32,9 @@
 
   (def (main . args)
     (parameterize ((program-name "hostname"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (if (null? args)
         (displayln (get-hostname))
         (cond

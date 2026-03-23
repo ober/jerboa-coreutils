@@ -13,7 +13,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Base32 alphabet
   (def *b32-alphabet* "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
@@ -91,6 +92,8 @@
 
   (def (main . args)
     (parameterize ((program-name "base32"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((wrap (if (hash-get opt 'wrap) (string->number (hash-ref opt 'wrap)) 76))

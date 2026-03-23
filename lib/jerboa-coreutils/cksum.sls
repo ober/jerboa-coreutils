@@ -14,7 +14,8 @@
           (std cli getopt)
           (std crypto digest)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; POSIX CRC-32 table (unreflected, polynomial 0x04C11DB7)
   (def crc32-table
@@ -154,6 +155,8 @@
 
   (def (main . args)
     (parameterize ((program-name "cksum"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((algo-str (or (hash-get opt 'algorithm) "crc"))

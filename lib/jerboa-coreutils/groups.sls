@@ -11,7 +11,8 @@
           (except (jerboa core) filter-map)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -57,6 +58,9 @@
 
   (def (main . args)
     (parameterize ((program-name "groups"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (cond
         ((and (pair? args) (member (car args) '("--help")))
          (displayln "Usage: groups [OPTION]... [USERNAME]...")

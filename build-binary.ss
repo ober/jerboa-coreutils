@@ -122,7 +122,7 @@
     pathchk fmt printf cksum md5sum sha1sum sha256sum sha512sum sha224sum sha384sum
     chmod chown chgrp stat du df date expr test who split dircolors
     install shred pinky basenc b2sum sum od csplit pr chcon runcon ptx
-    cp mv rm ls dd stty stdbuf dir vdir rev))
+    cp mv rm ls dd stty stdbuf dir vdir rev top))
 
 ;; Collect .so files for the boot file (dependency order)
 (define boot-libs
@@ -146,14 +146,16 @@
                     "std/os/signal"
                     "std/os/temporaries"
                     "std/srfi/srfi-13"
-                    "std/text/base64"))
+                    "std/text/base64"
+                    "std/misc/terminal"))
       ;; getopt (compiled in step 1)
       (list (let ((p (format "~a/std/cli/getopt.so" jerboa-dir)))
               (if (file-exists? p) p
                 (begin (printf "  WARNING: getopt.so not found\n") #f))))
       ;; coreutils common modules
       (list (cu-so "common")
-            (cu-so "common/version"))
+            (cu-so "common/version")
+            (cu-so "common/security"))
       ;; All 108 utilities
       (map (lambda (u) (cu-so (symbol->string u))) *utils*))))
 

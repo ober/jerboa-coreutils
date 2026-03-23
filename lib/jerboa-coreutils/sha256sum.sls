@@ -13,7 +13,8 @@
           (std cli getopt)
           (std crypto digest)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (read-all-bytes port)
     (let loop ((acc '()))
@@ -108,6 +109,8 @@
 
   (def (main . args)
     (parameterize ((program-name "sha256sum"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let ((files (if (null? (hash-ref opt 'rest)) '("-") (hash-ref opt 'rest))))

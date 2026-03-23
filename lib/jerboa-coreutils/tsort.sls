@@ -12,10 +12,13 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "tsort"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (cond
         ((and (pair? args) (member (car args) '("--help" "-h")))
          (displayln "Usage: tsort [OPTION] [FILE]")

@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-mkstemp (foreign-procedure "coreutils_mkstemp" (string) int))
@@ -27,6 +28,8 @@
 
   (def (main . args)
     (parameterize ((program-name "mktemp"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let* ((template (if (pair? (hash-ref opt 'rest))

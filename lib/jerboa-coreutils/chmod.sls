@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -128,15 +129,17 @@
          (let ((new-mode (parse-mode mode-str cur-mode)))
            (if (not new-mode)
              (warn "invalid mode: '~a'" mode-str)
-             (let ((rc (ffi-chmod path new-mode)))
-               (cond
-                 ((< rc 0)
-                  (warn "cannot chmod '~a'" path))
-                 (verbose
-                  (when (or (not changes-only) (not (= cur-mode new-mode)))
-                    (displayln "mode of '" path "' changed from "
-                               (number->string cur-mode 8) " to "
-                               (number->string new-mode 8)))))))))))
+             (begin
+               (audit-file-modify! path)
+               (let ((rc (ffi-chmod path new-mode)))
+                 (cond
+                   ((< rc 0)
+                    (warn "cannot chmod '~a'" path))
+                   (verbose
+                    (when (or (not changes-only) (not (= cur-mode new-mode)))
+                      (displayln "mode of '" path "' changed from "
+                                 (number->string cur-mode 8) " to "
+                                 (number->string new-mode 8))))))))))))
     ;; Recurse if directory
     (when (and recursive (= (ffi-stat-isdir path) 1))
       (with-catch
@@ -151,6 +154,8 @@
 
   (def (main . args)
     (parameterize ((program-name "chmod"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (when (null? (hash-ref opt 'rest))

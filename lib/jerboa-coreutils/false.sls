@@ -10,9 +10,11 @@
           (jerboa core)
           (jerboa-coreutils common)
           (jerboa-coreutils common version)
+          (jerboa-coreutils common security)
           (std cli getopt))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "false"))
       (when (and (pair? args) (member (car args) '("--help" "--version")))
         (cond

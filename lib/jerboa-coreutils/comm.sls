@@ -12,10 +12,13 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "comm"))
+      (init-security!)
+      (install-readonly-seccomp!)
       ;; Pre-process combined flags: -12 -> -1 -2, -23 -> -2 -3, etc.
       ;; Also handle --output-delimiter=X
       (let ((args (split-long-opts (expand-comm-flags args))))

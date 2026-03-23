@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; POSIX limits
   (def PATH_MAX 4096)
@@ -82,6 +83,8 @@
 
   (def (main . args)
     (parameterize ((program-name "pathchk"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (when (null? (hash-ref opt 'rest))

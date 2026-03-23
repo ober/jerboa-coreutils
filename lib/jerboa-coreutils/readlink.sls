@@ -12,7 +12,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; readlink via foreign-procedure: readlink fills a buffer, returns length.
   ;; Since we can't easily use static buffers with Chez foreign-procedure,
@@ -55,6 +56,8 @@
 
   (def (main . args)
     (parameterize ((program-name "readlink"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (when (null? (hash-ref opt 'rest))

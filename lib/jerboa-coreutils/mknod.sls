@@ -12,7 +12,8 @@
           (only (std format) eprintf)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; mknod(path, mode, dev) -- we need to combine type + mode + makedev(major,minor)
   ;; Since makedev is a macro, we shell out to /usr/bin/mknod for the actual work
@@ -42,6 +43,8 @@
 
   (def (main . args)
     (parameterize ((program-name "mknod"))
+      (init-security!)
+      (install-io-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
             (let ((rest (hash-ref opt 'rest)))

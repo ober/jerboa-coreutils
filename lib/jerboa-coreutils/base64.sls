@@ -14,10 +14,13 @@
           (std cli getopt)
           (std text base64)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "base64"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((wrap (if (hash-get opt 'wrap) (string->number (hash-ref opt 'wrap)) 76))

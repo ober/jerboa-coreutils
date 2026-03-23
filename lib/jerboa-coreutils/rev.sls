@@ -10,7 +10,8 @@
           (jerboa core)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (reverse-string s)
     (list->string (reverse (string->list s))))
@@ -24,6 +25,8 @@
 
   (def (main . args)
     (parameterize ((program-name "rev"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (if (null? args)
         (rev-port (current-input-port))
         (for-each

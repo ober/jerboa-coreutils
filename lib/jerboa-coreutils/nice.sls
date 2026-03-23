@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
@@ -19,6 +20,8 @@
 
   (def (main . args)
     (parameterize ((program-name "nice"))
+      (init-security!)
+      (install-process-seccomp!)
       (let loop ((args args) (adjustment 10))
         (cond
           ((null? args)

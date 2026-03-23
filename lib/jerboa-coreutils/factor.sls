@@ -10,10 +10,13 @@
           (jerboa core)
           (only (std sugar) with-catch)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (main . args)
     (parameterize ((program-name "factor"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (cond
         ((and (pair? args) (member (car args) '("--help")))
          (displayln "Usage: factor [NUMBER]...")

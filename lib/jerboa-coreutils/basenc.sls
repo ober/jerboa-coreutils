@@ -14,7 +14,8 @@
           (std cli getopt)
           (std text base64)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; ---- Base32 implementation ----
   (define *b32-alphabet* "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
@@ -201,6 +202,8 @@
 
   (def (main . args)
     (parameterize ((program-name "basenc"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((decode (hash-get opt 'decode))

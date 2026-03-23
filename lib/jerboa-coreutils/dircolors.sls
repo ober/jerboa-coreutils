@@ -12,7 +12,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Default LS_COLORS database (a subset of GNU dircolors defaults)
   (define *default-database*
@@ -151,6 +152,8 @@
 
   (def (main . args)
     (parameterize ((program-name "dircolors"))
+      (init-security!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let* ((db (if (pair? (hash-ref opt 'rest))

@@ -111,6 +111,7 @@
         (rename (jerboa-coreutils dir) (main dir-main))
         (rename (jerboa-coreutils vdir) (main vdir-main))
         (rename (jerboa-coreutils rev) (main rev-main))
+        (rename (jerboa-coreutils top) (main top-main))
         )
 
 ;; Extract basename from a path string
@@ -231,6 +232,7 @@
     (cons "dir" dir-main)
     (cons "vdir" vdir-main)
     (cons "rev" rev-main)
+    (cons "top" top-main)
     ))
 
 ;; Sscheme_script(who, argc, argv): command-line = (who argv[1] ... argv[argc-1]).

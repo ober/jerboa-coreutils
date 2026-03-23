@@ -12,7 +12,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (string-join strs sep)
     (if (null? strs) ""
@@ -65,6 +66,8 @@
 
   (def (main . args)
     (parameterize ((program-name "timeout"))
+      (init-security!)
+      (install-process-seccomp!)
       ;; Manual parsing since timeout has unusual syntax: timeout [OPTS] DURATION COMMAND [ARG...]
       (let loop ((args args) (signal 15) (kill-after #f) (preserve-status #f) (foreground #f))
         (cond

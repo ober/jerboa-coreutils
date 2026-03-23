@@ -12,7 +12,8 @@
           (only (std sugar) with-catch)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Run /usr/bin/who and extract usernames, print sorted on one line
   (def (get-logged-in-users)
@@ -50,6 +51,9 @@
 
   (def (main . args)
     (parameterize ((program-name "users"))
+      (init-security!)
+      (install-proc-only-landlock!)
+      (install-readonly-seccomp!)
       (call-with-getopt
         (lambda (_ opt)
           (let ((users (get-logged-in-users)))

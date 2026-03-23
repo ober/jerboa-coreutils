@@ -11,7 +11,8 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   ;; Parse a size value with optional suffixes: c=1, w=2, b=512, K=1024, M=1M, G=1G
   (def (parse-size str)
@@ -72,6 +73,8 @@
 
   (def (main . args)
     (parameterize ((program-name "dd"))
+      (init-security!)
+      (install-io-seccomp!)
       ;; Handle --help and --version
       (when (and (pair? args) (equal? (car args) "--help"))
         (displayln "Usage: dd [OPERAND]...")

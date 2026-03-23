@@ -13,7 +13,8 @@
           (only (std format) eprintf format)
           (std cli getopt)
           (jerboa-coreutils common)
-          (jerboa-coreutils common version))
+          (jerboa-coreutils common version)
+          (jerboa-coreutils common security))
 
   (def (filter-hidden lst)
     (cond
@@ -39,6 +40,7 @@
     (for-each displayln names))
 
   (def (main . args)
+    (init-security!)
     (parameterize ((program-name "dir"))
       (call-with-getopt
         (lambda (_ opt)
