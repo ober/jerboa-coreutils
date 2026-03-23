@@ -88,15 +88,6 @@
                         (list total used avail)
                         #f)))))))))))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   (def (print-df-header human inode show-type)
     (if inode
       (displayln (ljust "Filesystem" 20)

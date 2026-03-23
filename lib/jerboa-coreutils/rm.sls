@@ -21,13 +21,14 @@
 
   (define *exit-code* 0)
 
+  (define ffi-lstat-type (foreign-procedure "coreutils_lstat_type" (string) int))
+
   (def (file-type path)
     ;; -1=not found, 0=file/symlink/other, 1=directory
-    (with-catch
-      (lambda (e) -1)
-      (lambda ()
-        (if (file-directory? path) 1
-          (if (file-exists? path) 0 -1)))))
+    ;; Uses lstat so symlinks are not followed — a symlink to a directory
+    ;; is reported as 0 (file/other), preventing rm -rf from following
+    ;; symlinks into other directory trees.
+    (ffi-lstat-type path))
 
   ;; Confirm removal
   (def (confirm-remove path type-str)

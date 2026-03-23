@@ -16,6 +16,7 @@
 #include <utime.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 
 /* ========== chmod/stat helpers ========== */
@@ -341,4 +342,67 @@ int coreutils_chgrp_chown(const char *path, int gid) {
 
 int coreutils_chgrp_lchown(const char *path, int gid) {
     return lchown(path, (uid_t)-1, (gid_t)gid);
+}
+
+/* ========== mktemp helper ========== */
+
+/* Create a temporary file via mkstemp(3) with O_EXCL atomicity.
+ * template must end with XXXXXX. Returns fd on success, -1 on error.
+ * The template buffer is modified in-place with the actual filename. */
+static char mkstemp_result_buf[4096];
+int coreutils_mkstemp(const char *tmpl) {
+    size_t len = strlen(tmpl);
+    if (len >= sizeof(mkstemp_result_buf)) return -1;
+    memcpy(mkstemp_result_buf, tmpl, len + 1);
+    return mkstemp(mkstemp_result_buf);
+}
+
+/* Create a temporary directory via mkdtemp(3) with atomic creation.
+ * template must end with XXXXXX. Returns 0 on success, -1 on error.
+ * The template buffer is modified in-place with the actual dirname. */
+int coreutils_mkdtemp(const char *tmpl) {
+    size_t len = strlen(tmpl);
+    if (len >= sizeof(mkstemp_result_buf)) return -1;
+    memcpy(mkstemp_result_buf, tmpl, len + 1);
+    return mkdtemp(mkstemp_result_buf) ? 0 : -1;
+}
+
+const char* coreutils_mkstemp_get_path(void) {
+    return mkstemp_result_buf;
+}
+
+/* ========== readlink FFI helper ========== */
+
+static char readlink_result_buf[4096];
+const char* coreutils_readlink(const char *path) {
+    ssize_t n = readlink(path, readlink_result_buf, sizeof(readlink_result_buf) - 1);
+    if (n < 0) return NULL;
+    readlink_result_buf[n] = '\0';
+    return readlink_result_buf;
+}
+
+/* ========== realpath FFI helper ========== */
+
+static char realpath_result_buf[4096];
+const char* coreutils_realpath(const char *path) {
+    char *result = realpath(path, realpath_result_buf);
+    return result;  /* NULL on error */
+}
+
+/* ========== file size helper (for shred) ========== */
+
+long long coreutils_stat_size(const char *path) {
+    struct stat st;
+    if (stat(path, &st) < 0) return -1;
+    return (long long)st.st_size;
+}
+
+/* ========== fsync by path helper (for shred) ========== */
+
+int coreutils_fsync_path(const char *path) {
+    int fd = open(path, O_RDWR);
+    if (fd < 0) return -1;
+    int rc = fsync(fd);
+    close(fd);
+    return rc;
 }

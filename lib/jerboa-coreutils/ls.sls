@@ -18,60 +18,29 @@
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
   (define ffi-isatty (foreign-procedure "isatty" (int) int))
+  (define ffi-lstat (foreign-procedure "coreutils_ls_lstat" (string int) int))
+  (define ffi-stat-get (foreign-procedure "coreutils_ls_stat_get" (int) long-long))
+  (define ffi-readlink (foreign-procedure "coreutils_ls_readlink" (string) string))
+  (define ffi-time-format (foreign-procedure "coreutils_time_format" (long) string))
+  (define ffi-uid-to-name (foreign-procedure "coreutils_uid_to_name" (int) string))
+  (define ffi-gid-to-name (foreign-procedure "coreutils_gid_to_name" (int) string))
 
   ;;; ========= Data structures =========
   ;; Entry: #(name full-path mode nlink uid gid size mtime ino blocks)
-  ;; We get stat info via system stat command
-
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
 
   (def (make-entry name full-path follow-links)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let* ((flag (if follow-links "" "-L"))
-               (cmd (string-append "stat " flag " -c '%f %h %u %g %s %Y %i %b' "
-                       (shell-quote full-path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                #f
-                (let ((parts (string-split-spaces line)))
-                  (if (< (length parts) 8)
-                    #f
-                    (let ((mode (string->number (list-ref parts 0) 16))
-                          (nlink (string->number (list-ref parts 1)))
-                          (uid (string->number (list-ref parts 2)))
-                          (gid (string->number (list-ref parts 3)))
-                          (size (string->number (list-ref parts 4)))
-                          (mtime (string->number (list-ref parts 5)))
-                          (ino (string->number (list-ref parts 6)))
-                          (blocks (string->number (list-ref parts 7))))
-                      (if (and mode nlink uid gid size mtime ino blocks)
-                        (vector name full-path mode nlink uid gid size mtime ino blocks)
-                        #f)))))))))))
-
-  (def (string-split-spaces str)
-    (let loop ((i 0) (start #f) (acc '()))
-      (cond
-        ((>= i (string-length str))
-         (reverse (if start (cons (substring str start i) acc) acc)))
-        ((char-whitespace? (string-ref str i))
-         (loop (+ i 1) #f
-               (if start (cons (substring str start i) acc) acc)))
-        (else
-         (loop (+ i 1) (or start i) acc)))))
+    (let ((rc (ffi-lstat full-path (if follow-links 1 0))))
+      (if (< rc 0)
+        #f
+        (let ((mode (ffi-stat-get 0))
+              (nlink (ffi-stat-get 1))
+              (uid (ffi-stat-get 2))
+              (gid (ffi-stat-get 3))
+              (size (ffi-stat-get 4))
+              (mtime (ffi-stat-get 6))
+              (ino (ffi-stat-get 8))
+              (blocks (ffi-stat-get 9)))
+          (vector name full-path mode nlink uid gid size mtime ino blocks)))))
 
   (def (entry-name e)      (vector-ref e 0))
   (def (entry-path e)      (vector-ref e 1))
@@ -153,60 +122,18 @@
 
   ;;; ========= Symlink target =========
   (def (read-symlink path)
-    (with-catch
-      (lambda (e) "")
-      (lambda ()
-        (let ((cmd (string-append "readlink " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line)) "" line)))))))
+    (or (ffi-readlink path) ""))
 
   ;;; ========= Time formatting =========
   (def (format-time mtime)
-    (with-catch
-      (lambda (e) "?")
-      (lambda ()
-        (let ((cmd (string-append "date -d @" (number->string mtime) " '+%b %e %H:%M' 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line)) "?" line)))))))
+    (or (ffi-time-format mtime) "?"))
 
   ;;; ========= User/Group name lookup =========
   (def (uid->name uid)
-    (with-catch
-      (lambda (e) (number->string uid))
-      (lambda ()
-        (let ((cmd (string-append "getent passwd " (number->string uid) " 2>/dev/null | cut -d: -f1")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line) (string=? line ""))
-                (number->string uid) line)))))))
+    (or (ffi-uid-to-name uid) (number->string uid)))
 
   (def (gid->name gid)
-    (with-catch
-      (lambda (e) (number->string gid))
-      (lambda ()
-        (let ((cmd (string-append "getent group " (number->string gid) " 2>/dev/null | cut -d: -f1")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line) (string=? line ""))
-                (number->string gid) line)))))))
+    (or (ffi-gid-to-name gid) (number->string gid)))
 
   ;;; ========= Indicator character =========
   (def (indicator-char mode)

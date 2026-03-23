@@ -13,18 +13,11 @@
           (jerboa-coreutils common)
           (jerboa-coreutils common version))
 
-  (def (expand-template template)
-    ;; Find the X's and replace with random chars
-    (let* ((len (string-length template))
-           (result (string-copy template))
-           (chars "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"))
-      (let loop ((i 0))
-        (when (< i len)
-          (when (eqv? (string-ref result i) #\X)
-            (string-set! result i
-              (string-ref chars (random-integer (string-length chars)))))
-          (loop (+ i 1))))
-      result))
+  (define _load-ffi (begin (load-shared-object #f) (void)))
+  (define ffi-mkstemp (foreign-procedure "coreutils_mkstemp" (string) int))
+  (define ffi-mkdtemp (foreign-procedure "coreutils_mkdtemp" (string) int))
+  (define ffi-mkstemp-get-path (foreign-procedure "coreutils_mkstemp_get_path" () string))
+  (define ffi-close (foreign-procedure "close" (int) int))
 
   (def (count-trailing-x template)
     (let loop ((i (- (string-length template) 1)) (count 0))
@@ -44,28 +37,25 @@
                    (x-count (count-trailing-x template)))
               (when (< x-count 3)
                 (die "too few X's in template '~a'" template))
-              ;; Try up to 100 times
-              (let loop ((attempts 0))
-                (when (>= attempts 100)
-                  (die "failed to create ~a after 100 attempts"
-                    (if (hash-get opt 'directory) "directory" "file")))
-                (let* ((name (expand-template template))
-                       (path (if (string-index name #\/)
-                               name
-                               (string-append tmpdir "/" name))))
-                  (with-catch
-                    (lambda (e)
-                      (loop (+ attempts 1)))
-                    (lambda ()
-                      (if (hash-get opt 'directory)
-                        (begin
-                          (create-directory path)
-                          (displayln path))
-                        (begin
-                          ;; Create file exclusively
-                          (let ((port (open-output-file path)))
-                            (close-port port))
-                          (displayln path)))))))))
+              ;; Build full path with XXXXXX suffix for mkstemp/mkdtemp
+              (let* ((base (substring template 0 (- (string-length template) x-count)))
+                     (mktemp-template (string-append base (make-string (max x-count 6) #\X)))
+                     (full-template (if (string-index mktemp-template #\/)
+                                      mktemp-template
+                                      (string-append tmpdir "/" mktemp-template))))
+                (if (hash-get opt 'directory)
+                  ;; Create directory atomically via mkdtemp(3)
+                  (let ((rc (ffi-mkdtemp full-template)))
+                    (if (< rc 0)
+                      (die "failed to create directory via template '~a'" full-template)
+                      (displayln (ffi-mkstemp-get-path))))
+                  ;; Create file atomically via mkstemp(3) — O_EXCL guaranteed
+                  (let ((fd (ffi-mkstemp full-template)))
+                    (if (< fd 0)
+                      (die "failed to create file via template '~a'" full-template)
+                      (begin
+                        (ffi-close fd)
+                        (displayln (ffi-mkstemp-get-path)))))))))
         args
         'program: "mktemp"
         'help: "Create a temporary file or directory, safely, and print its name."

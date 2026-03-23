@@ -16,15 +16,6 @@
   ;; stty - delegate to /usr/bin/stty
   ;; Pass all arguments through to the system binary.
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   (def (main . args)
     (parameterize ((program-name "stty"))
       (with-catch

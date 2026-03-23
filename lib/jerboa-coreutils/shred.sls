@@ -15,40 +15,16 @@
           (jerboa-coreutils common)
           (jerboa-coreutils common version))
 
-  ;; Get file size via stat command
+  (define _load-ffi (begin (load-shared-object #f) (void)))
+  (define ffi-file-size (foreign-procedure "coreutils_file_size" (string) long-long))
+
+  ;; Get file size via FFI stat
   (def (get-file-size path)
-    (with-catch
-      (lambda (e) -1)
-      (lambda ()
-        (let ((cmd (string-append "stat -c '%s' " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                -1
-                (let ((n (string->number line)))
-                  (if n (inexact->exact n) -1)))))))))
+    (ffi-file-size path))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
-  ;; Generate a bytevector of random bytes
+  ;; Generate a bytevector of cryptographically secure random bytes
   (def (random-bytes n)
-    (let ((buf (make-bytevector n)))
-      (let loop ((i 0))
-        (when (< i n)
-          (bytevector-u8-set! buf i (random-integer 256))
-          (loop (+ i 1))))
-      buf))
+    (secure-random-bytes n))
 
   ;; Generate a bytevector of zero bytes
   (def (zero-bytes n)

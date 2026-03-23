@@ -77,15 +77,6 @@
             ((string=? (substring str i (+ i sublen)) sub) #t)
             (else (loop (+ i 1))))))))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   ;; Token stream
   (define *test-tokens* '#())
   (define *test-pos* 0)

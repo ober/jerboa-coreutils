@@ -38,15 +38,6 @@
               (close-port from-stderr)
               (for-each displayln output)))))))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   (def (main . args)
     (parameterize ((program-name "date"))
       ;; We use a simple manual arg parser to pass args directly to /bin/date

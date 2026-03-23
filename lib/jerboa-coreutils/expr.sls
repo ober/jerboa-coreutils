@@ -273,15 +273,6 @@
               (loop (+ i 1) (cons c (cons #\\ acc)))
               (loop (+ i 1) (cons c acc))))))))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   (def (string-contains-substr? str sub)
     (let ((slen (string-length str))
           (sublen (string-length sub)))

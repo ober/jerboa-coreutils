@@ -21,81 +21,30 @@
   (define ffi-link (foreign-procedure "link" (string string) int))
   (define ffi-mkdir (foreign-procedure "mkdir" (string int) int))
   (define ffi-unlink (foreign-procedure "unlink" (string) int))
+  (define ffi-cp-lstat (foreign-procedure "coreutils_cp_lstat" (string) int))
+  (define ffi-cp-stat-get (foreign-procedure "coreutils_cp_stat_get" (int) long))
+  (define ffi-cp-readlink (foreign-procedure "coreutils_cp_readlink" (string) string))
+  (define ffi-cp-stat-atime (foreign-procedure "coreutils_stat_atime" (string) long))
+  (define ffi-cp-stat-mtime (foreign-procedure "coreutils_stat_mtime" (string) long))
+  (define ffi-utime (foreign-procedure "coreutils_utime" (string long long) int))
+  (define ffi-stat-mode (foreign-procedure "coreutils_stat_get_mode" (string) int))
 
   (define *exit-code* 0)
 
-  ;; Get file type via stat command: 'regular, 'directory, 'symlink, 'other, or #f
+  ;; Get file type via lstat FFI: 'regular, 'directory, 'symlink, 'other, or #f
   (def (get-file-type path)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let ((cmd (string-append "stat -c '%F' " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                #f
-                (cond
-                  ((string-contains? line "symbolic link") 'symlink)
-                  ((string-contains? line "directory") 'directory)
-                  ((string-contains? line "regular") 'regular)
-                  (else 'other)))))))))
-
-  ;; Get file type via lstat (does not follow symlinks)
-  (def (get-lfile-type path)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let ((cmd (string-append "stat -L -c '%F' " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                ;; Fall back to non-L stat for the raw type
-                (get-file-type path)
-                (cond
-                  ((string-contains? line "symbolic link") 'symlink)
-                  ((string-contains? line "directory") 'directory)
-                  ((string-contains? line "regular") 'regular)
-                  (else 'other)))))))))
-
-  (def (string-contains? str sub)
-    (let ((slen (string-length str))
-          (sublen (string-length sub)))
-      (if (> sublen slen) #f
-        (let loop ((i 0))
+    (let ((rc (ffi-cp-lstat path)))
+      (if (< rc 0)
+        #f
+        (let ((type-code (ffi-cp-stat-get 7)))
           (cond
-            ((> (+ i sublen) slen) #f)
-            ((string=? (substring str i (+ i sublen)) sub) #t)
-            (else (loop (+ i 1))))))))
-
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
+            ((= type-code 0) 'regular)
+            ((= type-code 1) 'directory)
+            ((= type-code 2) 'symlink)
+            (else 'other))))))
 
   (def (read-symlink path)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let ((cmd (string-append "readlink " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line)) #f line)))))))
+    (ffi-cp-readlink path))
 
   (def (path-basename path)
     (let loop ((i (- (string-length path) 1)))
@@ -109,14 +58,18 @@
   (def (copy-file-data src dst)
     (let ((in (open-file-input-port src))
           (out (open-file-output-port dst (file-options no-fail))))
-      (let ((buf (make-bytevector 65536)))
-        (let loop ()
-          (let ((n (get-bytevector-n! in buf 0 65536)))
-            (unless (eof-object? n)
-              (put-bytevector out buf 0 n)
-              (loop)))))
-      (close-port in)
-      (close-port out)))
+      (dynamic-wind
+        (lambda () (void))
+        (lambda ()
+          (let ((buf (make-bytevector 65536)))
+            (let loop ()
+              (let ((n (get-bytevector-n! in buf 0 65536)))
+                (unless (eof-object? n)
+                  (put-bytevector out buf 0 n)
+                  (loop))))))
+        (lambda ()
+          (close-port in)
+          (close-port out)))))
 
   ;; Confirm overwrite
   (def (confirm-overwrite dst)
@@ -127,19 +80,15 @@
            (or (eqv? (string-ref resp 0) #\y)
                (eqv? (string-ref resp 0) #\Y)))))
 
-  ;; Preserve mode and timestamps via cp --preserve
+  ;; Preserve mode and timestamps via FFI
   (def (preserve-attributes src dst)
-    (with-catch
-      (lambda (e) #t)
-      (lambda ()
-        (let ((cmd (string-append "chmod --reference=" (shell-quote src) " " (shell-quote dst)
-                     " 2>/dev/null; touch --reference=" (shell-quote src) " " (shell-quote dst)
-                     " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (close-port from-stdout)
-            (close-port from-stderr))))))
+    (let ((src-mode (ffi-stat-mode src))
+          (src-atime (ffi-cp-stat-atime src))
+          (src-mtime (ffi-cp-stat-mtime src)))
+      (when (>= src-mode 0)
+        (ffi-chmod dst src-mode))
+      (when (and (>= src-atime 0) (>= src-mtime 0))
+        (ffi-utime dst src-atime src-mtime))))
 
   ;; Copy a single item
   (def (copy-one src dst force interactive verbose preserve
@@ -224,7 +173,19 @@
             (lambda (name)
               (let ((s (string-append src "/" name))
                     (d (string-append dst "/" name)))
-                (copy-one s d force interactive verbose preserve #f #f #t)))
+                ;; Skip symlinks that point outside the source tree
+                (let ((s-type (get-file-type s)))
+                  (if (and (eq? s-type 'symlink)
+                           (let ((target (read-symlink s)))
+                             (and target
+                                  ;; If symlink target is absolute, check it
+                                  (> (string-length target) 0)
+                                  (eqv? (string-ref target 0) #\/)
+                                  (not (path-within-base? target src)))))
+                    (begin
+                      (warn "skipping symlink '~a' that points outside source tree" s)
+                      (set! *exit-code* 1))
+                    (copy-one s d force interactive verbose preserve #f #f #t)))))
             entries))))
     (when preserve
       (preserve-attributes src dst))

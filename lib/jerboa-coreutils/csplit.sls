@@ -84,15 +84,6 @@
   (def (string-contains-pattern? line pattern)
     (line-matches-pattern? line pattern))
 
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
   ;; Expand patterns: resolve {N} and {*}
   (def (expand-patterns pat-strings)
     (let loop ((rest pat-strings) (prev #f) (acc '()))

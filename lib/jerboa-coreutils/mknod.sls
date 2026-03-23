@@ -28,23 +28,6 @@
       (unless (zero? status)
         (die "cannot create special file '~a'" name))))
 
-  (def (shell-quote s)
-    (string-append "'" (string-replace-all s "'" "'\\''") "'"))
-
-  (def (string-replace-all str old new)
-    (let ((olen (string-length old))
-          (out (open-output-string)))
-      (let loop ((i 0))
-        (cond
-          ((> (+ i olen) (string-length str))
-           (display (substring str i (string-length str)) out)
-           (get-output-string out))
-          ((string=? (substring str i (+ i olen)) old)
-           (display new out)
-           (loop (+ i olen)))
-          (else
-           (write-char (string-ref str i) out)
-           (loop (+ i 1)))))))
 
   (def (parse-mode-str str default)
     (with-catch

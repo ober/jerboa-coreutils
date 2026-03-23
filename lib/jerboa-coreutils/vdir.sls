@@ -15,63 +15,31 @@
           (jerboa-coreutils common)
           (jerboa-coreutils common version))
 
+  (define _load-ffi (begin (load-shared-object #f) (void)))
+  (define ffi-lstat (foreign-procedure "coreutils_ls_lstat" (string int) int))
+  (define ffi-stat-get (foreign-procedure "coreutils_ls_stat_get" (int) long-long))
+  (define ffi-readlink (foreign-procedure "coreutils_ls_readlink" (string) string))
+  (define ffi-time-format (foreign-procedure "coreutils_time_format" (long) string))
+  (define ffi-uid-to-name (foreign-procedure "coreutils_uid_to_name" (int) string))
+  (define ffi-gid-to-name (foreign-procedure "coreutils_gid_to_name" (int) string))
+
   ;; Entry: #(name full-path mode nlink uid gid size mtime blocks)
-
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
-  (def (string-split-spaces str)
-    (let loop ((i 0) (start #f) (acc '()))
-      (cond
-        ((>= i (string-length str))
-         (reverse (if start
-                    (cons (substring str start i) acc)
-                    acc)))
-        ((eqv? (string-ref str i) #\space)
-         (if start
-           (loop (+ i 1) #f (cons (substring str start i) acc))
-           (loop (+ i 1) #f acc)))
-        (else
-         (if start
-           (loop (+ i 1) start acc)
-           (loop (+ i 1) i acc))))))
 
   (def (make-entry name dir)
     (let ((full (if (string=? dir ".")
                   name
                   (string-append dir "/" name))))
-      (with-catch
-        (lambda (e) #f)
-        (lambda ()
-          (let* ((cmd (string-append "stat -c '%f %h %u %g %s %Y %b' "
-                         (shell-quote full) " 2>/dev/null")))
-            (let-values (((to-stdin from-stdout from-stderr pid)
-                          (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-              (close-port to-stdin)
-              (let ((line (get-line from-stdout)))
-                (close-port from-stdout)
-                (close-port from-stderr)
-                (if (or (not line) (eof-object? line))
-                  #f
-                  (let ((parts (string-split-spaces line)))
-                    (if (< (length parts) 7)
-                      #f
-                      (let ((mode (string->number (list-ref parts 0) 16))
-                            (nlink (string->number (list-ref parts 1)))
-                            (uid (string->number (list-ref parts 2)))
-                            (gid (string->number (list-ref parts 3)))
-                            (size (string->number (list-ref parts 4)))
-                            (mtime (string->number (list-ref parts 5)))
-                            (blocks (string->number (list-ref parts 6))))
-                        (if (and mode nlink uid gid size mtime blocks)
-                          (vector name full mode nlink uid gid size mtime blocks)
-                          #f))))))))))))
+      (let ((rc (ffi-lstat full 0)))
+        (if (< rc 0)
+          #f
+          (let ((mode (ffi-stat-get 0))
+                (nlink (ffi-stat-get 1))
+                (uid (ffi-stat-get 2))
+                (gid (ffi-stat-get 3))
+                (size (ffi-stat-get 4))
+                (mtime (ffi-stat-get 6))
+                (blocks (ffi-stat-get 9)))
+            (vector name full mode nlink uid gid size mtime blocks))))))
 
   (def (mode->rwx mode)
     (let* ((p (bitwise-and mode #o7777))
@@ -111,102 +79,19 @@
 
   ;; Format time like ls: recent files show HH:MM, old files show year
   (def (format-time epoch)
-    (with-catch
-      (lambda (e) "?")
-      (lambda ()
-        (let* ((cmd (string-append "date -d @" (number->string epoch)
-                       " '+%b %e %H:%M %Y' 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                "?"
-                ;; line is like "Mar 18 14:30 2026"
-                ;; For recent files (< 6 months), show "Mon DD HH:MM"
-                ;; For old files, show "Mon DD  YYYY"
-                (let* ((now-cmd "date +%s 2>/dev/null"))
-                  (let-values (((to2 from2 err2 pid2)
-                                (open-process-ports now-cmd (buffer-mode block) (native-transcoder))))
-                    (close-port to2)
-                    (let ((now-str (get-line from2)))
-                      (close-port from2)
-                      (close-port err2)
-                      (let ((now (if (and now-str (not (eof-object? now-str)))
-                                   (or (string->number now-str) 0)
-                                   0)))
-                        (let ((diff (- now epoch)))
-                          ;; Parse the date output: "Mon DD HH:MM YYYY"
-                          (let ((parts (string-split-spaces line)))
-                            (if (< (length parts) 4)
-                              line
-                              (let ((mon (list-ref parts 0))
-                                    (day (list-ref parts 1))
-                                    (time-str (list-ref parts 2))
-                                    (year (list-ref parts 3)))
-                                (let ((padded-day (if (< (string-length day) 2)
-                                                    (string-append " " day)
-                                                    day)))
-                                  (if (or (< diff 0) (> diff 15552000))
-                                    (string-append mon " " padded-day "  " year)
-                                    (string-append mon " " padded-day " " time-str))))))))))))))))))
+    (or (ffi-time-format epoch) "?"))
 
   ;; Look up username by uid
   (def (uid->name uid)
-    (with-catch
-      (lambda (e) (number->string uid))
-      (lambda ()
-        (let* ((cmd (string-append "getent passwd " (number->string uid) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                (number->string uid)
-                ;; passwd line: name:x:uid:gid:...
-                (let loop ((i 0))
-                  (cond
-                    ((>= i (string-length line)) (number->string uid))
-                    ((eqv? (string-ref line i) #\:) (substring line 0 i))
-                    (else (loop (+ i 1))))))))))))
+    (or (ffi-uid-to-name uid) (number->string uid)))
 
   ;; Look up group name by gid
   (def (gid->name gid)
-    (with-catch
-      (lambda (e) (number->string gid))
-      (lambda ()
-        (let* ((cmd (string-append "getent group " (number->string gid) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                (number->string gid)
-                (let loop ((i 0))
-                  (cond
-                    ((>= i (string-length line)) (number->string gid))
-                    ((eqv? (string-ref line i) #\:) (substring line 0 i))
-                    (else (loop (+ i 1))))))))))))
+    (or (ffi-gid-to-name gid) (number->string gid)))
 
   ;; Read symlink target
   (def (read-symlink path)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let* ((cmd (string-append "readlink " (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line)) #f line)))))))
+    (ffi-readlink path))
 
   (def (filter-hidden lst)
     (cond

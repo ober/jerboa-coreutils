@@ -14,61 +14,18 @@
           (jerboa-coreutils common)
           (jerboa-coreutils common version))
 
-  ;; Get file info via stat command: returns (isdir size blocks islink) or #f
+  (define _load-ffi (begin (load-shared-object #f) (void)))
+  (define ffi-du-stat (foreign-procedure "coreutils_du_stat" (string int) long))
+
+  ;; Get file info via FFI stat: returns (isdir size blocks islink) or #f
   (def (du-stat-info path)
-    (with-catch
-      (lambda (e) #f)
-      (lambda ()
-        (let ((cmd (string-append "stat -c '%F %s %b' "
-                                   (shell-quote path) " 2>/dev/null")))
-          (let-values (((to-stdin from-stdout from-stderr pid)
-                        (open-process-ports cmd (buffer-mode block) (native-transcoder))))
-            (close-port to-stdin)
-            (let ((line (get-line from-stdout)))
-              (close-port from-stdout)
-              (close-port from-stderr)
-              (if (or (not line) (eof-object? line))
-                #f
-                (let ((parts (string-split-spaces line)))
-                  (if (< (length parts) 3)
-                    #f
-                    (let ((type-str (car parts))
-                          (size (string->number (list-ref parts (- (length parts) 2))))
-                          (blocks (string->number (list-ref parts (- (length parts) 1)))))
-                      (list (if (string-contains? type-str "directory") 1 0)
-                            (or size 0)
-                            (or blocks 0)
-                            (if (string-contains? type-str "link") 1 0))))))))))))
-
-  (def (shell-quote str)
-    (string-append "'" (let loop ((i 0) (acc '()))
-      (if (>= i (string-length str))
-        (list->string (reverse acc))
-        (let ((c (string-ref str i)))
-          (if (eqv? c #\')
-            (loop (+ i 1) (append (reverse (string->list "'\\''")) acc))
-            (loop (+ i 1) (cons c acc)))))) "'"))
-
-  (def (string-contains? str sub)
-    (let ((slen (string-length str))
-          (sublen (string-length sub)))
-      (if (> sublen slen) #f
-        (let loop ((i 0))
-          (cond
-            ((> (+ i sublen) slen) #f)
-            ((string=? (substring str i (+ i sublen)) sub) #t)
-            (else (loop (+ i 1))))))))
-
-  (def (string-split-spaces str)
-    (let loop ((i 0) (start #f) (acc '()))
-      (cond
-        ((>= i (string-length str))
-         (reverse (if start (cons (substring str start i) acc) acc)))
-        ((char-whitespace? (string-ref str i))
-         (loop (+ i 1) #f
-               (if start (cons (substring str start i) acc) acc)))
-        (else
-         (loop (+ i 1) (or start i) acc)))))
+    (let ((isdir (ffi-du-stat path 0)))
+      (if (< isdir 0)
+        #f
+        (let ((size (ffi-du-stat path 1))
+              (blocks (ffi-du-stat path 2))
+              (islink (ffi-du-stat path 3)))
+          (list isdir size blocks islink)))))
 
   (def (human-readable-size bytes)
     (cond

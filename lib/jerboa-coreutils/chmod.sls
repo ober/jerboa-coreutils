@@ -19,32 +19,12 @@
 
   (define ffi-chmod (foreign-procedure "chmod" (string int) int))
 
+  (define ffi-lstat-mode-c (foreign-procedure "coreutils_lstat_mode" (string) int))
+
   (define ffi-lstat-mode
-    (let ((lstat-fn (foreign-procedure "lstat" (string u8* int) int)))
-      (lambda (path)
-        (let ((buf (make-bytevector 256 0)))
-          (let ((rc (lstat-fn path buf 256)))
-            (if (< rc 0) -1
-              ;; st_mode is at different offsets depending on platform
-              ;; Use the system stat command as fallback
-              (let ((mode-str
-                     (with-catch
-                       (lambda (e) #f)
-                       (lambda ()
-                         (let-values (((to-stdin from-stdout from-stderr pid)
-                                       (open-process-ports
-                                         (string-append "stat -c '%a' " path)
-                                         (buffer-mode block)
-                                         (native-transcoder))))
-                           (close-port to-stdin)
-                           (let ((result (get-line from-stdout)))
-                             (close-port from-stdout)
-                             (close-port from-stderr)
-                             result))))))
-                (if (and mode-str (not (eof-object? mode-str)))
-                  (let ((n (string->number mode-str 8)))
-                    (if n n -1))
-                  -1))))))))
+    (lambda (path)
+      (ffi-lstat-mode-c path)))
+
 
   (define ffi-stat-isdir
     (lambda (path)

@@ -76,7 +76,7 @@
           (result (vector-copy vec)))
       (let loop ((i (- n 1)))
         (when (> i 0)
-          (let ((j (random-integer (+ i 1))))
+          (let ((j (secure-random-integer (+ i 1))))
             (let ((tmp (vector-ref result i)))
               (vector-set! result i (vector-ref result j))
               (vector-set! result j tmp)))
