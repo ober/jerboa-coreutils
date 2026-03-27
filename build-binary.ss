@@ -122,7 +122,7 @@
     pathchk fmt printf cksum md5sum sha1sum sha256sum sha512sum sha224sum sha384sum
     chmod chown chgrp stat du df date expr test who split dircolors
     install shred pinky basenc b2sum sum od csplit pr chcon runcon ptx
-    cp mv rm ls dd stty stdbuf dir vdir rev top))
+    cp mv rm ls dd stty stdbuf dir vdir rev top grep))
 
 ;; Collect .so files for the boot file (dependency order)
 (define boot-libs
@@ -218,6 +218,14 @@
       (when (file-exists? link) (delete-file link))
       (system (format "ln -sf jerboa-coreutils ~a" link))))
   *utils*)
+
+;; --- Create egrep/fgrep symlinks ---
+(for-each
+  (lambda (alias)
+    (let ([link (format "~a/~a" bin-dir alias)])
+      (when (file-exists? link) (delete-file link))
+      (system (format "ln -sf jerboa-coreutils ~a" link))))
+  '("egrep" "fgrep"))
 
 ;; --- Cleanup intermediate files ---
 (printf "Cleaning up intermediate files...\n")

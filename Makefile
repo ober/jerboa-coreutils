@@ -32,7 +32,8 @@ UTILS = true false yes echo printenv sleep whoami logname pwd \
         dircolors \
         install shred pinky basenc b2sum sum od csplit pr chcon runcon ptx \
         cp mv rm ls dd stty stdbuf \
-        dir vdir rev top
+        dir vdir rev top \
+        grep
 
 export CHEZSCHEMELIBDIRS = $(LIB_DIR):$(JERBOA_LIB)
 export PROJECT_DIR = $(CURDIR)
@@ -69,6 +70,20 @@ $(BIN_DIR)/.generated: $(wildcard $(LIB_DIR)/jerboa-coreutils/*.sls)
 			echo "(apply main (cdr (command-line)))" >> $(BIN_DIR)/$$util.sps; \
 		fi; \
 	done
+	@# Create egrep/fgrep as aliases for grep
+	@cd $(BIN_DIR) && ln -sf grep egrep && ln -sf grep fgrep
+	@if [ ! -f $(BIN_DIR)/egrep.sps ]; then \
+		echo '#!chezscheme' > $(BIN_DIR)/egrep.sps; \
+		echo "(import (except (chezscheme) make-hash-table hash-table? iota 1+ 1- getenv path-extension path-absolute? thread? make-mutex mutex? mutex-name))" >> $(BIN_DIR)/egrep.sps; \
+		echo "(import (jerboa-coreutils grep))" >> $(BIN_DIR)/egrep.sps; \
+		echo "(apply main (cdr (command-line)))" >> $(BIN_DIR)/egrep.sps; \
+	fi
+	@if [ ! -f $(BIN_DIR)/fgrep.sps ]; then \
+		echo '#!chezscheme' > $(BIN_DIR)/fgrep.sps; \
+		echo "(import (except (chezscheme) make-hash-table hash-table? iota 1+ 1- getenv path-extension path-absolute? thread? make-mutex mutex? mutex-name))" >> $(BIN_DIR)/fgrep.sps; \
+		echo "(import (jerboa-coreutils grep))" >> $(BIN_DIR)/fgrep.sps; \
+		echo "(apply main (cdr (command-line)))" >> $(BIN_DIR)/fgrep.sps; \
+	fi
 	@touch $@
 
 # Run a single utility: make run UTIL=true ARGS="--help"
