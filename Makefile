@@ -3,11 +3,9 @@
 
 SCHEME = scheme
 JERBOA_LIB = $(HOME)/mine/jerboa/lib
-# Use .CURDIR for BSD make, CURDIR for GNU make
-TOPDIR != pwd
-LIB_DIR = $(TOPDIR)/lib
-BIN_DIR = $(TOPDIR)/bin
-SUPPORT_DIR = $(TOPDIR)/support
+LIB_DIR = $(CURDIR)/lib
+BIN_DIR = $(CURDIR)/bin
+SUPPORT_DIR = $(CURDIR)/support
 
 # All utility names (matches gerbil-coreutils)
 UTILS = true false yes echo printenv sleep whoami logname pwd \
@@ -38,7 +36,7 @@ UTILS = true false yes echo printenv sleep whoami logname pwd \
         grep
 
 export CHEZSCHEMELIBDIRS = $(LIB_DIR):$(JERBOA_LIB)
-export PROJECT_DIR = $(TOPDIR)
+export PROJECT_DIR = $(CURDIR)
 
 # Default: build native multi-call binary
 .PHONY: all build binary clean test install help
@@ -48,15 +46,15 @@ all: binary
 # Native multi-call binary (BusyBox-style, self-contained ELF)
 binary: $(SUPPORT_DIR)/libcoreutils.so
 	@mkdir -p $(BIN_DIR)
-	PROJECT_DIR=$(TOPDIR) $(SCHEME) --libdirs "$(CHEZSCHEMELIBDIRS)" -q < build-binary.ss
+	PROJECT_DIR=$(CURDIR) $(SCHEME) --libdirs "$(CHEZSCHEMELIBDIRS)" -q < build-binary.ss
 
 # Legacy: build C shim + generate interpreter wrapper scripts
 build: $(SUPPORT_DIR)/libcoreutils.so $(BIN_DIR)/.generated
 
 $(SUPPORT_DIR)/libcoreutils.so: $(SUPPORT_DIR)/libcoreutils.c
-	gcc -shared -fPIC -O2 -o $@ $(SUPPORT_DIR)/libcoreutils.c
+	gcc -shared -fPIC -O2 -o $@ $<
 
-$(BIN_DIR)/.generated: $(SUPPORT_DIR)/libcoreutils.so
+$(BIN_DIR)/.generated: $(wildcard $(LIB_DIR)/jerboa-coreutils/*.sls)
 	@mkdir -p $(BIN_DIR)
 	@for util in $(UTILS); do \
 		echo '#!/bin/sh' > $(BIN_DIR)/$$util; \
