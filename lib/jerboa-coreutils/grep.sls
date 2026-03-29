@@ -131,13 +131,16 @@
                                    (not (string=? e ".."))))
                   entries)))))
 
-  ;; Collect files to grep, handling recursion
+  ;; Collect files to grep, handling recursion.
+  ;; todo items are (path . cmdline?) pairs — command-line symlinks are always
+  ;; followed; discovered symlinks are skipped with -r (only -R follows them).
   (def (collect-files paths recursive? deref? includes excludes exclude-dirs
                       suppress-errors?)
-    (let loop ([todo paths] [acc '()])
+    (let loop ([todo (map (lambda (p) (cons p #t)) paths)] [acc '()])
       (if (null? todo)
         (reverse acc)
-        (let ([path (car todo)])
+        (let ([path (caar todo)]
+              [cmdline? (cdar todo)])
           (if (string=? path "-")
             (loop (cdr todo) (cons "-" acc))
             (with-catch
@@ -148,6 +151,10 @@
                 (loop (cdr todo) acc))
               (lambda ()
                 (cond
+                  ;; With -r (not -R), skip symlinks found during traversal
+                  ;; Command-line symlinks are always followed (matches GNU grep)
+                  [(and (not cmdline?) (not deref?) (file-symbolic-link? path))
+                   (loop (cdr todo) acc)]
                   [(file-directory? path)
                    (if recursive?
                      (let* ([base (path-basename path)]
@@ -156,12 +163,14 @@
                          (loop (cdr todo) acc)
                          (let* ([entries (list-directory path)]
                                 [children (map (lambda (e)
-                                                 (if (and (> (string-length path) 0)
-                                                          (char=? (string-ref path
-                                                                    (- (string-length path) 1))
-                                                                  #\/))
-                                                   (string-append path e)
-                                                   (string-append path "/" e)))
+                                                 (cons
+                                                   (if (and (> (string-length path) 0)
+                                                            (char=? (string-ref path
+                                                                      (- (string-length path) 1))
+                                                                    #\/))
+                                                     (string-append path e)
+                                                     (string-append path "/" e))
+                                                   #f))
                                                entries)])
                            (loop (append children (cdr todo)) acc))))
                      (begin
@@ -181,10 +190,8 @@
                        [(matches-any-glob? name excludes)
                         (loop (cdr todo) acc)]
                        [else (loop (cdr todo) (cons path acc))]))]
-                  ;; Symlinks in non-deref mode
-                  [(and (file-exists? path) (not (file-regular? path))
-                        (not (file-directory? path)))
-                   ;; Skip special files silently
+                  ;; Skip special files (pipes, devices, etc.) silently
+                  [(file-exists? path)
                    (loop (cdr todo) acc)]
                   [else
                    (unless suppress-errors?
@@ -769,57 +776,50 @@
                                                       word-match? line-match?)))])
 
                         ;; Build options hash for grep-file
-                        (let ([file-opts (make-hashtable string-hash string=?)])
-                          (hashtable-set! file-opts "show-filename" show-filename?)
-                          (hashtable-set! file-opts "line-number" show-lineno?)
-                          (hashtable-set! file-opts "byte-offset" show-byte-offset?)
-                          (hashtable-set! file-opts "invert-match" invert?)
-                          (hashtable-set! file-opts "count" count-only?)
-                          (hashtable-set! file-opts "quiet" quiet?)
-                          (hashtable-set! file-opts "only-matching"
+                        ;; Use Jerboa make-hash-table so grep-file can use
+                        ;; hash-ref / hash-get to read values.
+                        (let ([opts-ht (make-hash-table)])
+                          (hash-put! opts-ht 'show-filename show-filename?)
+                          (hash-put! opts-ht 'line-number show-lineno?)
+                          (hash-put! opts-ht 'byte-offset show-byte-offset?)
+                          (hash-put! opts-ht 'invert-match invert?)
+                          (hash-put! opts-ht 'count count-only?)
+                          (hash-put! opts-ht 'quiet quiet?)
+                          (hash-put! opts-ht 'only-matching
                             (and only-matching? (not invert?)))
-                          (hashtable-set! file-opts "files-with-matches"
+                          (hash-put! opts-ht 'files-with-matches
                             files-with-match?)
-                          (hashtable-set! file-opts "files-without-match"
+                          (hash-put! opts-ht 'files-without-match
                             files-without-match?)
-                          (hashtable-set! file-opts "max-count"
+                          (hash-put! opts-ht 'max-count
                             (if (< max-count 0) 999999999 max-count))
-                          (hashtable-set! file-opts "colorize" colorize?)
-                          (hashtable-set! file-opts "null" null-sep?)
-                          (hashtable-set! file-opts "null-data" zero-data?)
-                          (hashtable-set! file-opts "before-context" before-ctx)
-                          (hashtable-set! file-opts "after-context" after-ctx)
-                          (hashtable-set! file-opts "label" label)
-                          (hashtable-set! file-opts "initial-tab" initial-tab?)
-                          (hashtable-set! file-opts "line-buffered" line-buffered?)
-                          (hashtable-set! file-opts "no-messages" suppress-errors?)
+                          (hash-put! opts-ht 'colorize colorize?)
+                          (hash-put! opts-ht 'null null-sep?)
+                          (hash-put! opts-ht 'null-data zero-data?)
+                          (hash-put! opts-ht 'before-context before-ctx)
+                          (hash-put! opts-ht 'after-context after-ctx)
+                          (hash-put! opts-ht 'label label)
+                          (hash-put! opts-ht 'initial-tab initial-tab?)
+                          (hash-put! opts-ht 'line-buffered line-buffered?)
+                          (hash-put! opts-ht 'no-messages suppress-errors?)
 
-                          ;; Wrap hash in getopt-compatible accessor
-                          (let ([opts-ht (make-eq-hashtable)])
-                            (for-each
-                              (lambda (key)
-                                (hashtable-set! opts-ht
-                                  (string->symbol key)
-                                  (hashtable-ref file-opts key #f)))
-                              (vector->list (hashtable-keys file-opts)))
+                          ;; Process all files
+                          (let ([total-matches
+                                 (let loop ([flist file-list] [total 0])
+                                   (if (null? flist)
+                                     total
+                                     (let ([count (grep-file (car flist) rx opts-ht)])
+                                       ;; Quiet mode: exit immediately on first match
+                                       (if (and quiet? (> count 0))
+                                         (exit 0)
+                                         (loop (cdr flist) (+ total count))))))])
 
-                            ;; Process all files
-                            (let ([total-matches
-                                   (let loop ([flist file-list] [total 0])
-                                     (if (null? flist)
-                                       total
-                                       (let ([count (grep-file (car flist) rx opts-ht)])
-                                         ;; Quiet mode: exit immediately on first match
-                                         (if (and quiet? (> count 0))
-                                           (exit 0)
-                                           (loop (cdr flist) (+ total count))))))])
+                            ;; Clean up
+                            (pcre2-free! rx)
+                            (flush-output-port)
 
-                              ;; Clean up
-                              (pcre2-free! rx)
-                              (flush-output-port)
-
-                              ;; Exit code: 0=match, 1=no match, 2=error
-                              (exit (if (> total-matches 0) 0 1))))))))
+                            ;; Exit code: 0=match, 1=no match, 2=error
+                            (exit (if (> total-matches 0) 0 1)))))))
                   args
                   'program: "grep"
                   'help: "Search for PATTERNS in each FILE."
