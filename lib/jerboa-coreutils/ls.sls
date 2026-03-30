@@ -19,6 +19,7 @@
   (define _load-ffi (begin (load-shared-object #f) (void)))
 
   (define ffi-isatty (foreign-procedure "isatty" (int) int))
+  (define ffi-terminal-width (foreign-procedure "coreutils_terminal_width" (int) int))
   (define ffi-lstat (foreign-procedure "coreutils_ls_lstat" (string int) int))
   (define ffi-stat-get (foreign-procedure "coreutils_ls_stat_get" (int) long-long))
   (define ffi-readlink (foreign-procedure "coreutils_ls_readlink" (string) string))
@@ -253,6 +254,54 @@
           (newline))
         entries)))
 
+  ;;; ========= Columnar format output =========
+  (def (print-columns entries show-inode classify use-color term-width)
+    (if (null? entries)
+      (void)
+      (let* ((ino-width (if show-inode
+                          (apply max 1 (map (lambda (e)
+                                       (string-length (number->string (entry-ino e)))) entries))
+                          0))
+             ;; Compute display width of each entry
+             (entry-widths
+               (map (lambda (e)
+                      (+ (if show-inode (+ ino-width 1) 0)
+                         (string-length (entry-name e))
+                         (if classify (string-length (indicator-char (entry-mode e))) 0)))
+                    entries))
+             (max-width (apply max entry-widths))
+             (col-width (+ max-width 2))  ;; 2 spaces between columns
+             (num-cols (max 1 (quotient term-width col-width)))
+             (num-entries (length entries))
+             (num-rows (quotient (+ num-entries num-cols -1) num-cols))
+             (entry-vec (list->vector entries))
+             (width-vec (list->vector entry-widths)))
+        ;; Print in column-major order (down then across, like GNU ls)
+        (let row-loop ((row 0))
+          (when (< row num-rows)
+            (let col-loop ((col 0))
+              (let ((idx (+ row (* col num-rows))))
+                (when (< idx num-entries)
+                  (let* ((e (vector-ref entry-vec idx))
+                         (w (vector-ref width-vec idx))
+                         (last-col? (or (= col (- num-cols 1))
+                                        (>= (+ row (* (+ col 1) num-rows)) num-entries))))
+                    (when show-inode
+                      (display (left-pad (number->string (entry-ino e)) ino-width))
+                      (display " "))
+                    (let ((color (and use-color (color-for-entry e))))
+                      (when color (display color))
+                      (display (entry-name e))
+                      (when color (display *color-reset*)))
+                    (when classify
+                      (display (indicator-char (entry-mode e))))
+                    (if last-col?
+                      (newline)
+                      (begin
+                        (display (make-string (- col-width w) #\space))
+                        (col-loop (+ col 1))))))))
+            (row-loop (+ row 1)))))))
+
   ;;; ========= Directory listing =========
   (def (list-directory dir show-all show-almost-all follow-links)
     (with-catch
@@ -295,12 +344,17 @@
   ;;; ========= Recursive listing =========
   (def (list-dir-recursive dir show-all show-almost-all follow-links
                            sort-by reverse-sort long-format
-                           show-inode human-readable classify use-color)
+                           show-inode human-readable classify use-color
+                           use-columns term-width)
     (let* ((entries (list-directory dir show-all show-almost-all follow-links))
            (sorted (sort-entries entries sort-by reverse-sort)))
-      (if long-format
-        (print-long-format sorted show-inode human-readable classify use-color #t)
-        (print-one-per-line sorted show-inode classify use-color))
+      (cond
+        (long-format
+          (print-long-format sorted show-inode human-readable classify use-color #t))
+        (use-columns
+          (print-columns sorted show-inode classify use-color term-width))
+        (else
+          (print-one-per-line sorted show-inode classify use-color)))
       (for-each
         (lambda (sub)
           (when (and (entry-is-dir? sub)
@@ -311,7 +365,8 @@
               (displayln subpath ":")
               (list-dir-recursive subpath show-all show-almost-all follow-links
                                   sort-by reverse-sort long-format
-                                  show-inode human-readable classify use-color))))
+                                  show-inode human-readable classify use-color
+                                  use-columns term-width))))
         sorted)))
 
   ;;; ========= Color option pre-processing =========
@@ -363,6 +418,8 @@
                      (follow-links #f)
                      (is-tty (= (ffi-isatty 1) 1))
                      (use-color (resolve-color-mode color-mode is-tty))
+                     (use-columns (and is-tty (not one-per-line) (not long-format)))
+                     (term-width (if use-columns (ffi-terminal-width 1) 80))
                      (one-per-line (or one-per-line (not is-tty) long-format))
                      (sort-by (cond (sort-time 'time) (sort-size 'size) (else 'name))))
               ;; Separate file args from directory args
@@ -391,9 +448,13 @@
                 (set! dir-args (reverse dir-args))
                 ;; Print file entries
                 (unless (null? file-entries)
-                  (if long-format
-                    (print-long-format file-entries show-inode human-readable classify use-color #f)
-                    (print-one-per-line file-entries show-inode classify use-color)))
+                  (cond
+                    (long-format
+                      (print-long-format file-entries show-inode human-readable classify use-color #f))
+                    (use-columns
+                      (print-columns file-entries show-inode classify use-color term-width))
+                    (else
+                      (print-one-per-line file-entries show-inode classify use-color))))
                 ;; Print directories
                 (let ((show-header (or (> (length dir-args) 1)
                                        (and (not (null? file-entries))
@@ -406,12 +467,17 @@
                       (if recursive
                         (list-dir-recursive (car dirs) show-all show-almost-all
                                             follow-links sort-by reverse-sort long-format
-                                            show-inode human-readable classify use-color)
+                                            show-inode human-readable classify use-color
+                                            use-columns term-width)
                         (let* ((entries (list-directory (car dirs) show-all show-almost-all follow-links))
                                (sorted (sort-entries entries sort-by reverse-sort)))
-                          (if long-format
-                            (print-long-format sorted show-inode human-readable classify use-color #t)
-                            (print-one-per-line sorted show-inode classify use-color))))
+                          (cond
+                            (long-format
+                              (print-long-format sorted show-inode human-readable classify use-color #t))
+                            (use-columns
+                              (print-columns sorted show-inode classify use-color term-width))
+                            (else
+                              (print-one-per-line sorted show-inode classify use-color)))))
                       (loop (cdr dirs) #f))))
                 (when had-error? (exit 2)))))
           filtered-args

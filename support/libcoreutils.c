@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 
 /* ========== chmod/stat helpers ========== */
 
@@ -205,6 +206,13 @@ const char* coreutils_ls_readlink(const char *path) {
 
 int coreutils_isatty(int fd) {
     return isatty(fd);
+}
+
+int coreutils_terminal_width(int fd) {
+    struct winsize ws;
+    if (ioctl(fd, TIOCGWINSZ, &ws) < 0 || ws.ws_col == 0)
+        return 80;
+    return (int)ws.ws_col;
 }
 
 static char ls_time_buf[64];
