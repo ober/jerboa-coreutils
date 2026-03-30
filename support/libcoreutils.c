@@ -215,6 +215,37 @@ int coreutils_terminal_width(int fd) {
     return (int)ws.ws_col;
 }
 
+int coreutils_terminal_height(int fd) {
+    struct winsize ws;
+    if (ioctl(fd, TIOCGWINSZ, &ws) < 0 || ws.ws_row == 0)
+        return 24;
+    return (int)ws.ws_row;
+}
+
+/* Raw mode via tcgetattr/tcsetattr — no fork/exec needed */
+#include <termios.h>
+static struct termios coreutils_saved_termios;
+static int coreutils_termios_saved = 0;
+
+int coreutils_raw_mode_enter(int fd) {
+    struct termios raw;
+    if (tcgetattr(fd, &coreutils_saved_termios) < 0) return -1;
+    coreutils_termios_saved = 1;
+    raw = coreutils_saved_termios;
+    raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
+    raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 0;
+    return tcsetattr(fd, TCSAFLUSH, &raw);
+}
+
+int coreutils_raw_mode_exit(int fd) {
+    if (!coreutils_termios_saved) return -1;
+    coreutils_termios_saved = 0;
+    return tcsetattr(fd, TCSAFLUSH, &coreutils_saved_termios);
+}
+
 static char ls_time_buf[64];
 const char* coreutils_time_format(long t) {
     time_t tt = (time_t)t;

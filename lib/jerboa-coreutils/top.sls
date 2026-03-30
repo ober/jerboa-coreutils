@@ -43,17 +43,45 @@
           (only (std sugar) with-catch)
           (only (std format) eprintf format)
           (std cli getopt)
-          (std misc terminal)
-          (only (std os tty) tty? tty-size)
+          (except (std misc terminal)
+            terminal-width terminal-height
+            with-raw-mode with-alternate-screen)
           (jerboa-coreutils common)
           (jerboa-coreutils common version)
           (jerboa-coreutils common security))
 
-  ;; ========== FFI for kill/renice ==========
+  ;; ========== FFI for kill/renice/terminal ==========
 
   (define _load-ffi (begin (load-shared-object #f) (void)))
   (define ffi-kill (foreign-procedure "kill" (int int) int))
   (define ffi-setpriority (foreign-procedure "setpriority" (int int int) int))
+  (define ffi-terminal-width (foreign-procedure "coreutils_terminal_width" (int) int))
+  (define ffi-terminal-height (foreign-procedure "coreutils_terminal_height" (int) int))
+  (define ffi-raw-mode-enter (foreign-procedure "coreutils_raw_mode_enter" (int) int))
+  (define ffi-raw-mode-exit (foreign-procedure "coreutils_raw_mode_exit" (int) int))
+
+  ;; ========== Terminal helpers (FFI-based, no fork/exec) ==========
+
+  (define (terminal-width) (ffi-terminal-width 1))
+  (define (terminal-height) (ffi-terminal-height 1))
+
+  (define esc "\x1b;")
+
+  (define (with-raw-mode thunk)
+    (dynamic-wind
+      (lambda () (ffi-raw-mode-enter 0))
+      thunk
+      (lambda () (ffi-raw-mode-exit 0))))
+
+  (define (with-alternate-screen thunk)
+    (dynamic-wind
+      (lambda ()
+        (display (string-append esc "[?1049h"))
+        (flush-output-port (current-output-port)))
+      thunk
+      (lambda ()
+        (display (string-append esc "[?1049l"))
+        (flush-output-port (current-output-port)))))
 
   ;; ========== /proc Readers ==========
 
